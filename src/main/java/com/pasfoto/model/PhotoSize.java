@@ -6,20 +6,21 @@ public enum PhotoSize {
     PAS_4X6(40, 60),
     CUSTOM(30, 40);
 
-    private final double widthMm;
-    private final double heightMm;
+    private double widthMm;  // HAPUS KATA 'final'
+    private double heightMm; // HAPUS KATA 'final'
 
     PhotoSize(double widthMm, double heightMm) {
         this.widthMm = widthMm;
         this.heightMm = heightMm;
     }
 
-    public double getWidthMm() {
-        return widthMm;
-    }
+    public double getWidthMm() { return widthMm; }
+    public double getHeightMm() { return heightMm; }
 
-    public double getHeightMm() {
-        return heightMm;
+    // TAMBAHKAN FUNGSI SETTER INI
+    public void setDimensions(double widthMm, double heightMm) {
+        this.widthMm = widthMm;
+        this.heightMm = heightMm;
     }
 
     public double getAspectRatio() {

@@ -44,10 +44,11 @@ public class ColorThresholdRemover implements BackgroundRemover {
 
     private Color estimateBackgroundColor(BufferedImage image) {
         int[][] points = {
-                {0, 0},
-                {image.getWidth() - 1, 0},
-                {0, image.getHeight() - 1},
-                {image.getWidth() - 1, image.getHeight() - 1}
+                {0, 0},                                      
+                {image.getWidth() / 2, 0},                   
+                {image.getWidth() - 1, 0},                   
+                {0, 10},                                     
+                {image.getWidth() - 1, 10}                   
         };
 
         int r = 0;

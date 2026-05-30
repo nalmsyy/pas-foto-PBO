@@ -8,7 +8,7 @@ public enum BackgroundColor {
     WHITE(Color.WHITE),
     CUSTOM(Color.WHITE);
 
-    private final Color awtColor;
+    private Color awtColor; // HAPUS KATA 'final' DI SINI
 
     BackgroundColor(Color awtColor) {
         this.awtColor = awtColor;
@@ -16,6 +16,11 @@ public enum BackgroundColor {
 
     public Color getAwtColor() {
         return awtColor;
+    }
+
+    // TAMBAHKAN FUNGSI SETTER INI
+    public void setAwtColor(Color awtColor) {
+        this.awtColor = awtColor;
     }
 
     @Override

@@ -1,5 +1,11 @@
 package com.pasfoto.controller;
 
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.nio.file.Path;
+import java.util.Optional;
+
 import com.pasfoto.export.PhotoExporter;
 import com.pasfoto.model.BackgroundColor;
 import com.pasfoto.model.PhotoSize;
@@ -12,12 +18,6 @@ import com.pasfoto.processing.FaceDetector;
 import com.pasfoto.processing.GrabCutRemover;
 import com.pasfoto.processing.ImageLoader;
 import com.pasfoto.processing.PhotoFormatter;
-
-import java.awt.Rectangle;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.nio.file.Path;
-import java.util.Optional;
 
 public class PhotoController {
     private final ImageLoader imageLoader = new ImageLoader();
@@ -83,7 +83,7 @@ public class PhotoController {
 
         return switch (method.toLowerCase()) {
             case "grabcut" -> new GrabCutRemover();
-            case "api" -> new ApiBasedRemover(System.getenv("REMOVE_BG_API_KEY"));
+            case "api" -> new ApiBasedRemover("uMpooQfdQJS3A8YHv3Yx5mUk");
             case "threshold" -> new ColorThresholdRemover();
             default -> new ColorThresholdRemover();
         };
