@@ -1,10 +1,10 @@
 package com.pasfoto.processing;
 
-import com.pasfoto.model.PhotoSize;
-
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+
+import com.pasfoto.model.PhotoSize;
 
 public class PhotoFormatter {
     public static final int DEFAULT_DPI = 300;
@@ -32,7 +32,7 @@ public class PhotoFormatter {
         int cropY = Math.max(0, (input.getHeight() - cropH) / 2);
 
         BufferedImage cropped = input.getSubimage(cropX, cropY, cropW, cropH);
-        BufferedImage resized = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
+        BufferedImage resized = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = resized.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);

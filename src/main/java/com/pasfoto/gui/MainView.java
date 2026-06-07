@@ -35,6 +35,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 public class MainView {
+
     private final PhotoController controller;
     private final Stage stage;
     private final BorderPane root = new BorderPane();
@@ -45,7 +46,6 @@ public class MainView {
     private File selectedFile;
     private BufferedImage lastResult;
 
-    // --- PERBAIKAN: Kotak input dipindah ke sini agar bisa diakses secara dinamis ---
     private final TextField customWidth = new TextField("30");
     private final TextField customHeight = new TextField("40");
     private final ColorPicker customColorPicker = new ColorPicker(javafx.scene.paint.Color.WHITE);
@@ -64,23 +64,25 @@ public class MainView {
         ComboBox<String> methodCombo = new ComboBox<>(FXCollections.observableArrayList("Threshold", "GrabCut", "API"));
         methodCombo.setValue("Threshold");
 
+        // --- UBAH DEFAULT UKURAN KE CUSTOM ---
         ComboBox<PhotoSize> sizeCombo = new ComboBox<>(FXCollections.observableArrayList(PhotoSize.values()));
-        sizeCombo.setValue(PhotoSize.PAS_3X4);
+        sizeCombo.setValue(PhotoSize.CUSTOM);
 
+        // --- UBAH DEFAULT WARNA KE 'TIDAK ADA' (NONE) ---
         ComboBox<BackgroundColor> colorCombo = new ComboBox<>(FXCollections.observableArrayList(BackgroundColor.values()));
-        colorCombo.setValue(BackgroundColor.RED);
+        colorCombo.setValue(BackgroundColor.NONE);
 
         CheckBox autoCenterCheck = new CheckBox("Auto-center wajah");
         autoCenterCheck.setSelected(true);
 
-        // Atur ukuran lebar kotak teks input custom
         customWidth.setPrefWidth(45);
         customHeight.setPrefWidth(45);
-        
+
         HBox customSizeBox = new HBox(5, customWidth, new Label("x"), customHeight, new Label("mm"));
         customSizeBox.setAlignment(Pos.CENTER);
-        customSizeBox.setVisible(false);
-        customSizeBox.setManaged(false);
+        // Karena defaultnya CUSTOM, kotak ukuran harus langsung ditampilkan (true)
+        customSizeBox.setVisible(true);
+        customSizeBox.setManaged(true);
 
         sizeCombo.setOnAction(e -> {
             boolean isCustom = (sizeCombo.getValue() == PhotoSize.CUSTOM);
@@ -90,7 +92,6 @@ public class MainView {
         HBox sizeContainer = new HBox(5, sizeCombo, customSizeBox);
         sizeContainer.setAlignment(Pos.CENTER_LEFT);
 
-        // Atur visibilitas Custom Color
         customColorPicker.setVisible(false);
         customColorPicker.setManaged(false);
 
@@ -102,41 +103,39 @@ public class MainView {
         HBox colorContainer = new HBox(5, colorCombo, customColorPicker);
         colorContainer.setAlignment(Pos.CENTER_LEFT);
 
-        // Deklarasi Tombol
         Button uploadButton = new Button("Upload Foto");
         Button batchButton = new Button("Mode Batch");
         Button saveButton = new Button("Simpan Hasil");
         Button printPdfButton = new Button("Cetak Layout 4R (PDF)");
-        
+
         Button processButton = new Button("PROSES");
         processButton.setStyle("-fx-background-color: #007bff; -fx-text-fill: white; -fx-font-weight: bold;");
 
         uploadButton.setOnAction(event -> uploadImage());
         saveButton.setOnAction(event -> saveResult());
         printPdfButton.setOnAction(event -> printLayoutPdf());
-        
+
         processButton.setOnAction(event -> {
             applyCustomSettings(sizeCombo.getValue(), colorCombo.getValue(), customWidth, customHeight, customColorPicker);
             processImage(sizeCombo.getValue(), colorCombo.getValue(), autoCenterCheck.isSelected(), methodCombo.getValue());
         });
-        
+
         batchButton.setOnAction(event -> {
             applyCustomSettings(sizeCombo.getValue(), colorCombo.getValue(), customWidth, customHeight, customColorPicker);
             processBatch(sizeCombo.getValue(), colorCombo.getValue(), autoCenterCheck.isSelected(), methodCombo.getValue());
         });
 
-        // Menyusun tata letak Toolbar dua baris yang rapi
         Separator sep1 = new Separator(javafx.geometry.Orientation.VERTICAL);
         HBox barisAtas = new HBox(10, uploadButton, batchButton, sep1, saveButton, printPdfButton);
         barisAtas.setAlignment(Pos.CENTER_LEFT);
 
         Separator sep2 = new Separator(javafx.geometry.Orientation.VERTICAL);
-        HBox barisBawah = new HBox(10, 
-                new Label("Metode:"), methodCombo, 
-                new Label("Ukuran:"), sizeContainer, 
-                new Label("Background:"), colorContainer, 
+        HBox barisBawah = new HBox(10,
+                new Label("Metode:"), methodCombo,
+                new Label("Ukuran:"), sizeContainer,
+                new Label("Background:"), colorContainer,
                 sep2,
-                autoCenterCheck, 
+                autoCenterCheck,
                 processButton
         );
         barisBawah.setAlignment(Pos.CENTER_LEFT);
@@ -177,7 +176,7 @@ public class MainView {
                 statusLabel.setText("Peringatan: Input ukuran kustom tidak valid. Menggunakan ukuran default.");
             }
         }
-        
+
         if (color == BackgroundColor.CUSTOM) {
             javafx.scene.paint.Color fxColor = picker.getValue();
             java.awt.Color awtColor = new java.awt.Color(
@@ -217,15 +216,11 @@ public class MainView {
             lastResult = null;
             statusLabel.setText("Foto dipilih: " + file.getName());
 
-            // --- KODE BARU: Mengubah Nilai Input Ukuran Custom Mengikuti Ukuran Asli Gambar ---
-            // Mengonversi ukuran pixel gambar ke milimeter menggunakan standar cetak hulu (300 DPI)
             int originalWidthMm = (int) Math.round((image.getWidth() * 25.4) / 300.0);
             int originalHeightMm = (int) Math.round((image.getHeight() * 25.4) / 300.0);
-            
-            // Set teks otomatis ke kotak input
+
             customWidth.setText(String.valueOf(originalWidthMm));
             customHeight.setText(String.valueOf(originalHeightMm));
-            // ---------------------------------------------------------------------------------
 
         } catch (Exception e) {
             showError("Gagal membuka foto", e);
@@ -257,10 +252,8 @@ public class MainView {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Simpan Pas Foto");
         chooser.setInitialFileName("pasfoto.png");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("PNG", "*.png"),
-                new FileChooser.ExtensionFilter("JPEG", "*.jpg", "*.jpeg")
-        );
+        // HANYA EKSPOR KE PNG KARENA JPG TIDAK MENDUKUNG TRANSPARANSI
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG", "*.png"));
         File output = chooser.showSaveDialog(stage);
         if (output == null) {
             return;
@@ -284,8 +277,10 @@ public class MainView {
         chooser.setTitle("Simpan Layout Cetak 4R");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files", "*.pdf"));
         File output = chooser.showSaveDialog(stage);
-        
-        if (output == null) return;
+
+        if (output == null) {
+            return;
+        }
 
         try {
             statusLabel.setText("Membuat layout 4R...");
@@ -304,14 +299,18 @@ public class MainView {
         fileChooser.setTitle("Pilih Beberapa Foto (Batch)");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Image Files", "*.jpg", "*.jpeg", "*.png"));
         List<File> files = fileChooser.showOpenMultipleDialog(stage);
-        
-        if (files == null || files.isEmpty()) return;
+
+        if (files == null || files.isEmpty()) {
+            return;
+        }
 
         DirectoryChooser dirChooser = new DirectoryChooser();
         dirChooser.setTitle("Pilih Folder Penyimpanan Hasil Batch");
         File outputDir = dirChooser.showDialog(stage);
-        
-        if (outputDir == null) return;
+
+        if (outputDir == null) {
+            return;
+        }
 
         try {
             statusLabel.setText("Memproses " + files.size() + " foto... Mohon tunggu.");

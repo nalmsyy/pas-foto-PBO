@@ -3,12 +3,13 @@ package com.pasfoto.model;
 import java.awt.Color;
 
 public enum BackgroundColor {
+    NONE(new Color(0, 0, 0, 0)), // Warna dengan transparansi 100%
     RED(new Color(220, 0, 0)),
     BLUE(new Color(0, 80, 180)),
     WHITE(Color.WHITE),
     CUSTOM(Color.WHITE);
 
-    private Color awtColor; // HAPUS KATA 'final' DI SINI
+    private Color awtColor;
 
     BackgroundColor(Color awtColor) {
         this.awtColor = awtColor;
@@ -18,7 +19,6 @@ public enum BackgroundColor {
         return awtColor;
     }
 
-    // TAMBAHKAN FUNGSI SETTER INI
     public void setAwtColor(Color awtColor) {
         this.awtColor = awtColor;
     }
@@ -26,10 +26,16 @@ public enum BackgroundColor {
     @Override
     public String toString() {
         return switch (this) {
-            case RED -> "Merah";
-            case BLUE -> "Biru";
-            case WHITE -> "Putih";
-            case CUSTOM -> "Custom";
+            case NONE ->
+                "Tidak Ada";
+            case RED ->
+                "Merah";
+            case BLUE ->
+                "Biru";
+            case WHITE ->
+                "Putih";
+            case CUSTOM ->
+                "Custom";
         };
     }
 }

@@ -20,6 +20,7 @@ import com.pasfoto.processing.ImageLoader;
 import com.pasfoto.processing.PhotoFormatter;
 
 public class PhotoController {
+
     private final ImageLoader imageLoader = new ImageLoader();
     private final FaceDetector faceDetector = new FaceDetector();
     private final FaceCenterer faceCenterer = new FaceCenterer();
@@ -48,10 +49,20 @@ public class PhotoController {
             transparent = faceCenterer.centerFace(transparent, face);
         }
 
-        BufferedImage replaced = backgroundReplacer.replaceTransparentBackground(
-                transparent,
-                backgroundColor.getAwtColor()
-        );
+        // --- KODE PERBAIKAN DI SINI ---
+        // Cek apakah warna yang dipilih tembus pandang (Alpha = 0)
+        BufferedImage replaced;
+        if (backgroundColor.getAwtColor().getAlpha() == 0) {
+            // Jika "Tidak Ada" (Transparan), langsung lewati tahap pewarnaan
+            replaced = transparent;
+        } else {
+            // Jika ada warnanya (Merah/Biru), minta BackgroundReplacer untuk mengecat
+            replaced = backgroundReplacer.replaceTransparentBackground(
+                    transparent,
+                    backgroundColor.getAwtColor()
+            );
+        }
+        // ------------------------------
 
         return photoFormatter.cropAndResize(replaced, photoSize);
     }
@@ -82,10 +93,14 @@ public class PhotoController {
         }
 
         return switch (method.toLowerCase()) {
-            case "grabcut" -> new GrabCutRemover();
-            case "api" -> new ApiBasedRemover("uMpooQfdQJS3A8YHv3Yx5mUk");
-            case "threshold" -> new ColorThresholdRemover();
-            default -> new ColorThresholdRemover();
+            case "grabcut" ->
+                new GrabCutRemover();
+            case "api" ->
+                new ApiBasedRemover();
+            case "threshold" ->
+                new ColorThresholdRemover();
+            default ->
+                new ColorThresholdRemover();
         };
     }
 
