@@ -5,6 +5,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.pasfoto.batch.BatchProcessor;
 import com.pasfoto.controller.PhotoController;
@@ -13,6 +14,7 @@ import com.pasfoto.export.PrintLayoutGenerator;
 import com.pasfoto.model.BackgroundColor;
 import com.pasfoto.model.PhotoSize;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Insets;
@@ -23,6 +25,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.image.ImageView;
@@ -49,6 +52,7 @@ public class MainView {
     private final TextField customWidth = new TextField("30");
     private final TextField customHeight = new TextField("40");
     private final ColorPicker customColorPicker = new ColorPicker(javafx.scene.paint.Color.WHITE);
+    private final ListView<String> batchListView = new ListView<>();
 
     public MainView(PhotoController controller, Stage stage) {
         this.controller = controller;
@@ -64,11 +68,9 @@ public class MainView {
         ComboBox<String> methodCombo = new ComboBox<>(FXCollections.observableArrayList("Threshold", "GrabCut", "API"));
         methodCombo.setValue("Threshold");
 
-        // --- UBAH DEFAULT UKURAN KE CUSTOM ---
         ComboBox<PhotoSize> sizeCombo = new ComboBox<>(FXCollections.observableArrayList(PhotoSize.values()));
         sizeCombo.setValue(PhotoSize.CUSTOM);
 
-        // --- UBAH DEFAULT WARNA KE 'TIDAK ADA' (NONE) ---
         ComboBox<BackgroundColor> colorCombo = new ComboBox<>(FXCollections.observableArrayList(BackgroundColor.values()));
         colorCombo.setValue(BackgroundColor.NONE);
 
@@ -80,7 +82,6 @@ public class MainView {
 
         HBox customSizeBox = new HBox(5, customWidth, new Label("x"), customHeight, new Label("mm"));
         customSizeBox.setAlignment(Pos.CENTER);
-        // Karena defaultnya CUSTOM, kotak ukuran harus langsung ditampilkan (true)
         customSizeBox.setVisible(true);
         customSizeBox.setManaged(true);
 
@@ -145,10 +146,10 @@ public class MainView {
         toolbar.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 1 0; -fx-background-color: #f8f9fa;");
 
         originalPreview.setPreserveRatio(true);
-        originalPreview.setFitWidth(480);
+        originalPreview.setFitWidth(400);
         originalPreview.setFitHeight(560);
         resultPreview.setPreserveRatio(true);
-        resultPreview.setFitWidth(480);
+        resultPreview.setFitWidth(400);
         resultPreview.setFitHeight(560);
 
         VBox originalBox = createPreviewBox("Foto Asli", originalPreview);
@@ -159,10 +160,16 @@ public class MainView {
         HBox.setHgrow(originalBox, Priority.ALWAYS);
         HBox.setHgrow(resultBox, Priority.ALWAYS);
 
+        VBox batchPanel = new VBox(10, new Label("Panel Batch"), batchListView);
+        batchPanel.setPadding(new Insets(12));
+        batchPanel.setPrefWidth(220);
+        batchPanel.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 0 1;");
+        
         statusLabel.setPadding(new Insets(10));
 
         root.setTop(toolbar);
         root.setCenter(previewArea);
+        root.setRight(batchPanel);
         root.setBottom(statusLabel);
     }
 
@@ -251,9 +258,11 @@ public class MainView {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Simpan Pas Foto");
-        chooser.setInitialFileName("pasfoto.png");
-        // HANYA EKSPOR KE PNG KARENA JPG TIDAK MENDUKUNG TRANSPARANSI
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG", "*.png"));
+        chooser.setInitialFileName("pasfoto.jpg");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("JPEG Image", "*.jpg", "*.jpeg"),
+                new FileChooser.ExtensionFilter("PNG Image", "*.png")
+        );
         File output = chooser.showSaveDialog(stage);
         if (output == null) {
             return;
@@ -312,14 +321,30 @@ public class MainView {
             return;
         }
 
-        try {
-            statusLabel.setText("Memproses " + files.size() + " foto... Mohon tunggu.");
-            BatchProcessor bp = new BatchProcessor();
-            bp.process(files, outputDir.toPath(), controller, size, color, autoCenter, method, "png");
-            statusLabel.setText("Pemrosesan Batch Selesai! Hasil tersimpan di: " + outputDir.getAbsolutePath());
-        } catch (Exception e) {
-            showError("Gagal memproses Batch", e);
+        batchListView.getItems().clear();
+        for (File f : files) {
+            batchListView.getItems().add("[Tunggu] " + f.getName());
         }
+
+        statusLabel.setText("Memproses " + files.size() + " foto... Mohon tunggu.");
+
+        new Thread(() -> {
+            AtomicInteger counter = new AtomicInteger(0);
+            
+            files.parallelStream().forEach(file -> {
+                int index = counter.getAndIncrement();
+                Platform.runLater(() -> batchListView.getItems().set(index, "[Proses] " + file.getName()));
+                
+                try {
+                    controller.processAndExport(file, outputDir.toPath(), size, color, autoCenter, method, "jpg");
+                    Platform.runLater(() -> batchListView.getItems().set(index, "[Selesai] " + file.getName()));
+                } catch (Exception e) {
+                    Platform.runLater(() -> batchListView.getItems().set(index, "[Gagal] " + file.getName()));
+                }
+            });
+
+            Platform.runLater(() -> statusLabel.setText("Pemrosesan Batch Selesai! Hasil tersimpan di: " + outputDir.getAbsolutePath()));
+        }).start();
     }
 
     private void showError(String title, Exception e) {
