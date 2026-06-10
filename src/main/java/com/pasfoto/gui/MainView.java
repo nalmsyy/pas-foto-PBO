@@ -5,9 +5,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import com.pasfoto.batch.BatchProcessor;
 import com.pasfoto.controller.PhotoController;
 import com.pasfoto.export.PhotoExporter;
 import com.pasfoto.export.PrintLayoutGenerator;
@@ -16,6 +14,7 @@ import com.pasfoto.model.PhotoSize;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -25,9 +24,11 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -52,7 +53,26 @@ public class MainView {
     private final TextField customWidth = new TextField("30");
     private final TextField customHeight = new TextField("40");
     private final ColorPicker customColorPicker = new ColorPicker(javafx.scene.paint.Color.WHITE);
-    private final ListView<String> batchListView = new ListView<>();
+
+    // --- FITUR BATCH BARU ---
+    // Class kecil untuk menyimpan data antrean foto batch beserta thumbnail-nya
+    class BatchItem {
+        File file;
+        String status;
+        Image thumbnail;
+
+        BatchItem(File file) {
+            this.file = file;
+            this.status = "Menunggu";
+            // Load gambar kecil (thumbnail) 50x50 secara background agar UI tidak lag
+            this.thumbnail = new Image(file.toURI().toString(), 50, 50, true, true, true);
+        }
+    }
+
+    private final ObservableList<BatchItem> batchItems = FXCollections.observableArrayList();
+    private final ListView<BatchItem> batchListView = new ListView<>(batchItems);
+    private final Button btnProcessBatch = new Button("PROSES BATCH");
+    // ------------------------
 
     public MainView(PhotoController controller, Stage stage) {
         this.controller = controller;
@@ -104,12 +124,11 @@ public class MainView {
         HBox colorContainer = new HBox(5, colorCombo, customColorPicker);
         colorContainer.setAlignment(Pos.CENTER_LEFT);
 
-        Button uploadButton = new Button("Upload Foto");
-        Button batchButton = new Button("Mode Batch");
+        Button uploadButton = new Button("Upload Foto (Single)");
         Button saveButton = new Button("Simpan Hasil");
         Button printPdfButton = new Button("Cetak Layout 4R (PDF)");
 
-        Button processButton = new Button("PROSES");
+        Button processButton = new Button("PROSES SINGLE");
         processButton.setStyle("-fx-background-color: #007bff; -fx-text-fill: white; -fx-font-weight: bold;");
 
         uploadButton.setOnAction(event -> uploadImage());
@@ -121,13 +140,9 @@ public class MainView {
             processImage(sizeCombo.getValue(), colorCombo.getValue(), autoCenterCheck.isSelected(), methodCombo.getValue());
         });
 
-        batchButton.setOnAction(event -> {
-            applyCustomSettings(sizeCombo.getValue(), colorCombo.getValue(), customWidth, customHeight, customColorPicker);
-            processBatch(sizeCombo.getValue(), colorCombo.getValue(), autoCenterCheck.isSelected(), methodCombo.getValue());
-        });
-
         Separator sep1 = new Separator(javafx.geometry.Orientation.VERTICAL);
-        HBox barisAtas = new HBox(10, uploadButton, batchButton, sep1, saveButton, printPdfButton);
+        // Tombol Mode Batch dihapus dari atas karena sekarang dikelola di Panel Kanan
+        HBox barisAtas = new HBox(10, uploadButton, sep1, saveButton, printPdfButton);
         barisAtas.setAlignment(Pos.CENTER_LEFT);
 
         Separator sep2 = new Separator(javafx.geometry.Orientation.VERTICAL);
@@ -160,16 +175,63 @@ public class MainView {
         HBox.setHgrow(originalBox, Priority.ALWAYS);
         HBox.setHgrow(resultBox, Priority.ALWAYS);
 
-        VBox batchPanel = new VBox(10, new Label("Panel Batch"), batchListView);
-        batchPanel.setPadding(new Insets(12));
-        batchPanel.setPrefWidth(220);
-        batchPanel.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 0 1;");
+        // ============================================
+        // MEMBANGUN PANEL BATCH (DI SEBELAH KANAN)
+        // ============================================
         
+        // Custom Cell untuk menampilkan Thumbnail + Status
+        batchListView.setCellFactory(param -> new ListCell<BatchItem>() {
+            private final ImageView imageView = new ImageView();
+
+            @Override
+            protected void updateItem(BatchItem item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    imageView.setImage(item.thumbnail);
+                    setText(String.format("[%s]\n%s", item.status, item.file.getName()));
+                    setGraphic(imageView);
+                }
+            }
+        });
+
+        Button btnAddBatch = new Button("Tambah Foto Batch");
+        Button btnClearBatch = new Button("Bersihkan");
+        
+        btnProcessBatch.setStyle("-fx-background-color: #28a745; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnProcessBatch.setMaxWidth(Double.MAX_VALUE);
+
+        btnAddBatch.setOnAction(e -> addBatchPhotos());
+        btnClearBatch.setOnAction(e -> {
+            batchItems.clear();
+            statusLabel.setText("Daftar antrean batch dibersihkan.");
+        });
+        
+        btnProcessBatch.setOnAction(event -> {
+            if (batchItems.isEmpty()) {
+                statusLabel.setText("Daftar batch kosong! Tambahkan foto batch terlebih dahulu.");
+                return;
+            }
+            applyCustomSettings(sizeCombo.getValue(), colorCombo.getValue(), customWidth, customHeight, customColorPicker);
+            processBatchList(sizeCombo.getValue(), colorCombo.getValue(), autoCenterCheck.isSelected(), methodCombo.getValue());
+        });
+
+        HBox batchActionBox = new HBox(5, btnAddBatch, btnClearBatch);
+        batchActionBox.setAlignment(Pos.CENTER_LEFT);
+
+        VBox batchPanel = new VBox(10, new Label("Mode Batch (Banyak Foto)"), batchActionBox, batchListView, btnProcessBatch);
+        batchPanel.setPadding(new Insets(12));
+        batchPanel.setPrefWidth(280); // Diperlebar agar thumbnail dan teks muat dengan baik
+        batchPanel.setStyle("-fx-border-color: #cccccc; -fx-border-width: 0 0 0 1;");
+        // ============================================
+
         statusLabel.setPadding(new Insets(10));
 
         root.setTop(toolbar);
         root.setCenter(previewArea);
-        root.setRight(batchPanel);
+        root.setRight(batchPanel); // Panel Batch sekarang lebih interaktif
         root.setBottom(statusLabel);
     }
 
@@ -206,6 +268,7 @@ public class MainView {
         return box;
     }
 
+    // --- FUNGSI SINGLE PHOTO (Sama seperti sebelumnya) ---
     private void uploadImage() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Pilih Foto");
@@ -303,16 +366,22 @@ public class MainView {
         }
     }
 
-    private void processBatch(PhotoSize size, BackgroundColor color, boolean autoCenter, String method) {
+    // --- FUNGSI BATCH BARU (Bisa Tambah Foto Kapan Saja) ---
+    private void addBatchPhotos() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Pilih Beberapa Foto (Batch)");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Image Files", "*.jpg", "*.jpeg", "*.png"));
         List<File> files = fileChooser.showOpenMultipleDialog(stage);
 
-        if (files == null || files.isEmpty()) {
-            return;
+        if (files != null && !files.isEmpty()) {
+            for (File f : files) {
+                batchItems.add(new BatchItem(f)); // Masukkan ke dalam antrean (list) di UI panel kanan
+            }
+            statusLabel.setText(files.size() + " foto ditambahkan ke antrean batch.");
         }
+    }
 
+    private void processBatchList(PhotoSize size, BackgroundColor color, boolean autoCenter, String method) {
         DirectoryChooser dirChooser = new DirectoryChooser();
         dirChooser.setTitle("Pilih Folder Penyimpanan Hasil Batch");
         File outputDir = dirChooser.showDialog(stage);
@@ -321,29 +390,38 @@ public class MainView {
             return;
         }
 
-        batchListView.getItems().clear();
-        for (File f : files) {
-            batchListView.getItems().add("[Tunggu] " + f.getName());
-        }
-
-        statusLabel.setText("Memproses " + files.size() + " foto... Mohon tunggu.");
+        statusLabel.setText("Memproses " + batchItems.size() + " foto... Mohon tunggu.");
+        btnProcessBatch.setDisable(true); // Matikan tombol agar tidak di-klik 2x
 
         new Thread(() -> {
-            AtomicInteger counter = new AtomicInteger(0);
-            
-            files.parallelStream().forEach(file -> {
-                int index = counter.getAndIncrement();
-                Platform.runLater(() -> batchListView.getItems().set(index, "[Proses] " + file.getName()));
+            batchItems.parallelStream().forEach(item -> {
+                // Update UI: Ubah status menjadi Proses
+                Platform.runLater(() -> {
+                    item.status = "Proses";
+                    batchListView.refresh();
+                });
                 
                 try {
-                    controller.processAndExport(file, outputDir.toPath(), size, color, autoCenter, method, "jpg");
-                    Platform.runLater(() -> batchListView.getItems().set(index, "[Selesai] " + file.getName()));
+                    controller.processAndExport(item.file, outputDir.toPath(), size, color, autoCenter, method, "jpg");
+                    // Update UI: Ubah status jika sukses
+                    Platform.runLater(() -> {
+                        item.status = "Selesai";
+                        batchListView.refresh();
+                    });
                 } catch (Exception e) {
-                    Platform.runLater(() -> batchListView.getItems().set(index, "[Gagal] " + file.getName()));
+                    // Update UI: Ubah status jika gagal
+                    Platform.runLater(() -> {
+                        item.status = "Gagal";
+                        batchListView.refresh();
+                    });
                 }
             });
 
-            Platform.runLater(() -> statusLabel.setText("Pemrosesan Batch Selesai! Hasil tersimpan di: " + outputDir.getAbsolutePath()));
+            // Setelah semua foto dalam antrean selesai
+            Platform.runLater(() -> {
+                statusLabel.setText("Pemrosesan Batch Selesai! Hasil tersimpan di: " + outputDir.getAbsolutePath());
+                btnProcessBatch.setDisable(false);
+            });
         }).start();
     }
 
